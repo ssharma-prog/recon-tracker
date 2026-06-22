@@ -1,0 +1,11 @@
+# Runtime data — never committed (lives next to the bridge per machine)
+data/
+backups/
+
+# Dependencies — installed via `npm install` after clone
+node_modules/
+
+# Cruft
+*.log
+.DS_Store
+*.zip

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Reddit Tracker</title>
+<link rel="stylesheet" href="recon.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="onboard-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2>Welcome to Reddit Tracker</h2>
+      <p class="modal-sub">A few things to know before you start:</p>
+      <ol class="onboard-list">
+        <li><b>Connect the bridge first.</b> Check the dot in the top bar. Green means the bridge is running and you are ready. If it is red, just ask Claude to start the Reddit Tracker bridge (or click <b>Connect</b> for the command to run yourself). Nothing works until that dot is green.</li>
+        <li><b>Add your brand.</b> Click <b>+ Add brand</b> (under the Brand menu at the top) and enter the name, website, and a short description of what the brand is. That description matters: it is how the tool tells real mentions apart from unrelated things that happen to share the name.</li>
+        <li><b>Scans run in your browser, and large ones are slow.</b> Scanning opens real Google and Reddit pages with pauses in between so you do not get blocked. The more mentions there are, the longer it takes. A big scan can run for many minutes. You can press <b>Stop</b> at any time, and anything already found is saved.</li>
+        <li><b>You solve CAPTCHAs, not the tool.</b> Google sometimes shows a "confirm you're not a robot" check while scanning. When that happens the tool pauses and brings the tab to the front. Solve it and the scan continues on its own. The tool will not fill it in for you.</li>
+        <li><b>Check Selectors tests the scraper.</b> Google and Reddit occasionally change how their pages are built, which can quietly stop the tool from finding things. The <b>Check Selectors</b> button (top right) runs a quick test on live pages and tells you if anything is broken. Run it if your results suddenly come back empty.</li>
+      </ol>
+      <p class="modal-sub" style="margin-bottom:18px">This is your tool to shape. It runs entirely on your own machine, so the ideal way to use it is to tweak and iterate on it with your own copy of Claude Code as your needs change.</p>
+      <button class="btn btn-primary" id="btn-onboard-done">Got it</button>
+    </div>
+  </div>
+
+
+  <header>
+    <h1>Reddit Tracker</h1>
+    <span class="header-meta">Reddit mention &amp; AI-citation tracker</span>
+    <button class="btn btn-ghost btn-sm btn-help" id="btn-help" title="How this works">?</button>
+    <span id="bridge-status" class="status-dot offline"></span>
+    <span id="bridge-label" style="font-size:11px;color:var(--text2)">Checking…</span>
+    <button class="btn btn-ghost btn-sm hidden" id="btn-connect">Connect</button>
+    <button class="btn btn-ghost btn-sm" id="btn-check-selectors" style="margin-left:auto">Check Selectors</button>
+    <button class="btn btn-ghost btn-sm" id="btn-import-backup">⤒ Import Backup</button>
+    <button class="btn btn-ghost btn-sm" id="btn-download-backup">⤓ Download Backup</button>
+    <input type="file" id="import-file" accept="application/json,.json" style="display:none">
+  </header>
+
+  <div id="selector-panel" class="hidden" style="margin-top:10px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)">
+    <div style="display:flex;align-items:center;margin-bottom:8px">
+      <span style="font-weight:600">Selector health check</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:8px">Verifies the tool's scrapers still match Google &amp; Reddit's live markup.</span>
+      <button class="btn btn-ghost btn-sm" id="btn-close-selectors" style="margin-left:auto">✕</button>
+    </div>
+    <div id="selector-results"></div>
+  </div>
+
+  <div id="connect-bar" class="hidden" style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)">
+    <span style="font-size:11px;color:var(--text2)">Bridge isn't running. Start it — paste into Terminal (Mac) or PowerShell (Windows):</span>
+    <code id="connect-cmd" class="connect-cmd">node $HOME/reddit-tracker/bridge/server.js</code>
+    <button class="btn btn-ghost btn-sm" id="btn-copy-cmd">Copy</button>
+    <button class="btn btn-ghost btn-sm" id="btn-close-connect" style="margin-left:auto">✕</button>
+  </div>
+
+  <div class="brand-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <label style="font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Brand</label>
+    <select id="brand-select" style="padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);min-width:200px"></select>
+    <button class="btn btn-ghost btn-sm" id="btn-add-brand" style="margin-left:6px">+ Add brand</button>
+    <button class="btn btn-ghost btn-sm" id="btn-delete-brand">Delete brand</button>
+    <div id="brand-status" class="log-status" style="margin-left:8px"></div>
+  </div>
+
+  <div id="add-brand-form" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
+    <div style="font-weight:600;margin-bottom:10px">Add a brand</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">Brand Name *</label>
+        <input id="brand-name" type="text" placeholder="Acme Widgets" style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">URL</label>
+        <input id="brand-url" type="text" placeholder="https://acme.com" style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">Product Names <span style="color:var(--text2)">(comma-separated)</span></label>
+        <input id="brand-products" type="text" placeholder="Widget Pro, Widget Lite" style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">Marketing Reddit Account <span style="color:var(--text2)">(excluded from mentions)</span></label>
+        <input id="brand-account" type="text" placeholder="u/acmeteam" style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">Search Terms <span style="color:var(--text2)">(comma-separated)</span></label>
+      <input id="brand-terms" type="text" placeholder="AcmeWidgets, Acme Inc" style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text)">
+      <div style="font-size:10px;color:var(--text2);margin-top:3px">The brand name is always searched. Add spelling variants (e.g. AcmeWidgets) or aliases here. Each term is a separate Google search — more terms = slower scans.</div>
+    </div>
+    <div style="margin-top:10px">
+      <label style="display:block;font-size:11px;color:var(--text2);margin-bottom:3px">Description / Brand Brain * <span style="color:var(--text2)">— used to build the relevancy checker</span></label>
+      <textarea id="brand-description" rows="5" placeholder="What the brand is, its category, what it makes, and who it's for. A few clear sentences is enough — focus on what makes the name unambiguous, not volume." style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:13px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);resize:vertical;font-family:inherit"></textarea>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <button class="btn btn-primary btn-sm" id="btn-add-brand-submit">Create brand</button>
+      <button class="btn btn-ghost btn-sm" id="btn-add-brand-cancel">Cancel</button>
+      <div id="add-brand-status" class="log-status"></div>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-val" id="stat-comments">—</div>
+      <div class="stat-lbl">Comments Logged</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-audited">—</div>
+      <div class="stat-lbl">Audits Run</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-sb-hits">—</div>
+      <div class="stat-lbl">Brand in AI Overview</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-last-audit">—</div>
+      <div class="stat-lbl">Last Audit</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-mentions">—</div>
+      <div class="stat-lbl">Mentions Found</div>
+    </div>
+  </div>
+
+  <div class="log-form">
+    <label>Log Comment</label>
+    <div class="log-row">
+      <input id="input-url" type="text" placeholder="https://www.reddit.com/r/.../.../comment/...">
+      <button class="btn btn-primary" id="btn-log">Log</button>
+    </div>
+    <div id="log-status" class="log-status"></div>
+  </div>
+
+  <div>
+    <div class="section-header">
+      <span>Logged Comments</span>
+      <span id="comment-count"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-check-ai" style="margin-left:auto">Check AI Writing</button>
+    </div>
+    <div id="comment-list" class="comment-list" style="margin-top:10px"></div>
+  </div>
+
+  <div style="margin-top:20px">
+    <div class="section-header">
+      <span>General Overview</span>
+      <span id="overview-hit-count" style="margin-left:6px"></span>
+      <button class="btn btn-ghost btn-sm" id="btn-cleanup-citations" style="margin-left:auto">Clean Citations</button>
+      <button class="btn btn-primary btn-sm" id="btn-scan-overview" style="margin-left:6px">Scan Keywords</button>
+    </div>
+    <div id="overview-status" class="log-status" style="margin-top:6px"></div>
+    <div id="overview-list" style="margin-top:10px"></div>
+  </div>
+
+  <div id="analysis-panel" style="margin-top:28px"></div>
+
+  <div style="margin-top:20px">
+    <div class="section-header">
+      <span>Reddit Mentions</span>
+      <span id="mention-count" style="margin-left:6px"></span>
+      <input id="mention-search" type="text" placeholder="Search mentions…" style="margin-left:auto;padding:4px 10px;font-size:11px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);width:180px">
+      <button class="btn btn-primary btn-sm" id="btn-scan-mentions" style="margin-left:8px">Scan Mentions</button>
+      <button class="btn btn-ghost btn-sm" id="btn-reset-rescan" style="margin-left:6px">Reset & Rescan</button>
+      <button class="btn btn-primary btn-sm" id="btn-extract-comments" style="margin-left:6px">Extract Comments</button>
+      <button class="btn btn-ghost btn-sm" id="btn-cleanup" style="margin-left:6px">Clean Up</button>
+      <span id="last-scan-label" style="font-size:11px;color:var(--text2);margin-left:10px"></span>
+    </div>
+    <div id="mention-status" class="log-status" style="margin-top:6px"></div>
+    <div id="mention-list" style="margin-top:10px"></div>
+  </div>
+
+  <div style="margin-top:20px">
+    <div class="section-header">
+      <span>Cited Reddit Threads</span>
+      <span id="cited-count" style="margin-left:6px"></span>
+      <span style="font-size:10px;color:var(--text2);margin-left:auto">Reddit threads appearing in AI Overviews where the brand is mentioned</span>
+    </div>
+    <div id="cited-list" style="margin-top:10px"></div>
+  </div>
+
+</div>
+<script src="recon.js"></script>
+</body>
+</html>
