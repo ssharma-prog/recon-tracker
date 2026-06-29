@@ -48,11 +48,3 @@ and a short description. The description is the important part: it builds the
 relevancy checker that tells real mentions apart from same-named false positives.
 Add more brands any time from the dropdown.
 
-## Notes
-
-- **Local only.** The bridge listens on `127.0.0.1` and accepts requests only from
-  the extension. Nothing leaves your machine except the Google/Reddit page loads
-  the extension drives and the local `claude` calls used for analysis.
-- **Platform-agnostic.** The data and backup folders are resolved relative to the
-  bridge, so the same files work on macOS and Windows. All scraping runs in the
-  extension via `chrome.scripting`.
